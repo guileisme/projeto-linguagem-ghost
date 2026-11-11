@@ -5,8 +5,9 @@
 #include "error.h"
 #include "ast.h"
 #include "parser.tab.h"
+#include "semantic.h"
 
-#define GHOST_VERSION "0.2.0-dev (Etapa 2 - Fase 3: Parser & AST)"
+#define GHOST_VERSION "0.2.0-dev (Etapa 2 - Fase 4: Semantica)"
 
 extern FILE *yyin;
 extern int yylex(void);
@@ -143,8 +144,18 @@ int main(int argc, char *argv[]) {
                 ast_print(g_ast_root, 0);
                 printf("======================================================================\n");
             }
-            printf("[GHOST] Analise sintatica concluida com sucesso. AST construida com exito.\n");
-            ret = 0;
+
+            /* Executa a analise semantica com tabela de simbolos e checagem de tipos */
+            bool sem_ok = semantic_analyze(g_ast_root);
+
+            if (!sem_ok || ice_get_error_count() > 0) {
+                fprintf(stderr, "\n[GHOST] Analise semantica interrompida com %d erro(s) ICE.\n",
+                        ice_get_error_count());
+                ret = 1;
+            } else {
+                printf("[GHOST] Analise semantica concluida com sucesso. 0 erros encontrados.\n");
+                ret = 0;
+            }
         }
 
         if (g_ast_root) {

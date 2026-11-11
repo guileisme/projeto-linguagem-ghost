@@ -3,8 +3,8 @@ CFLAGS = -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L -Isrc
 LDFLAGS = 
 
 TARGET = ghost
-SRCS = src/main.c src/error.c src/ast.c src/parser.tab.c src/lex.yy.c
-OBJS = src/main.o src/error.o src/ast.o src/parser.tab.o src/lex.yy.o
+SRCS = src/main.c src/error.c src/ast.c src/symtab.c src/semantic.c src/parser.tab.c src/lex.yy.c
+OBJS = src/main.o src/error.o src/ast.o src/symtab.o src/semantic.o src/parser.tab.o src/lex.yy.o
 
 .PHONY: all clean test help
 
@@ -32,16 +32,26 @@ src/lex.yy.o: src/lex.yy.c src/parser.tab.h
 
 test: $(TARGET)
 	@echo "=================================================="
-	@echo "1. Analise sintatica e geracao de AST (script valido):"
+	@echo "1. Pipeline completo (script valido):"
 	@echo "=================================================="
-	./$(TARGET) --ast tests/valid/01_tokens_basicos.ghost
+	./$(TARGET) tests/valid/01_tokens_basicos.ghost
 	@echo ""
 	@echo "=================================================="
 	@echo "2. Barreira ICE capturando erro sintatico:"
 	@echo "=================================================="
 	-./$(TARGET) tests/invalid/02_sintatico_sem_trigger.ghost
+	@echo ""
 	@echo "=================================================="
-	@echo "Verificacoes concluidas com sucesso!"
+	@echo "3. Barreira ICE capturando variavel fantasma:"
+	@echo "=================================================="
+	-./$(TARGET) tests/invalid/03_semantico_variavel_fantasma.ghost
+	@echo ""
+	@echo "=================================================="
+	@echo "4. Barreira ICE capturando incompatibilidade de tipo:"
+	@echo "=================================================="
+	-./$(TARGET) tests/invalid/04_semantico_tipo_incompativel.ghost
+	@echo "=================================================="
+	@echo "Verificacoes semanticas concluidas com sucesso!"
 
 clean:
 	rm -f src/*.o $(TARGET)

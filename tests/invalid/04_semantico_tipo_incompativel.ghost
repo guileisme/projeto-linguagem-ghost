@@ -1,0 +1,5 @@
+#!/usr/bin/env ghost
+// Teste de erro semantico: incompatibilidade de tipos
+implant msg: stream <~ "conexao"!
+implant resultado: core <~ msg + 42!
+shell 42!

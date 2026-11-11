@@ -1,0 +1,5 @@
+#!/usr/bin/env ghost
+// Teste de erro semantico: variavel fantasma (uso sem implant)
+implant x: core <~ 10!
+y <~ variavel_fantasma + 1!
+whisper x!
