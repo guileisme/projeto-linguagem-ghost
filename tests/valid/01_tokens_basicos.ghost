@@ -1,0 +1,25 @@
+#!/usr/bin/env ghost
+// Teste de tokens da linguagem Ghost
+/* Comentario de bloco
+   multi-linhas para teste */
+
+implant porta: core <~ 8080!
+implant taxa: flux <~ 3.1415!
+implant ativo: state <~ sync!
+implant inativo: state <~ void!
+implant msg: stream <~ "Conexao iniciada com sucesso.\n"!
+
+when ativo = sync dive
+    whisper "Sistema online!", msg!
+    shell "uptime"!
+surface otherwise dive
+    whisper "Falha de barramento."!
+    eject 1!
+surface
+
+cycle porta > 8000 dive
+    porta <~ porta - 1!
+    when porta = 8040 dive
+        cloak!
+    surface
+surface

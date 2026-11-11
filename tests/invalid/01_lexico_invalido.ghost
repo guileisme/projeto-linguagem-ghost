@@ -1,0 +1,4 @@
+#!/usr/bin/env ghost
+// Teste de erro lexico: caractere invalido
+implant preço: core <~ 100!
+implant rede: stream <~ "ICE" @ "falha"!
