@@ -6,8 +6,9 @@
 #include "ast.h"
 #include "parser.tab.h"
 #include "semantic.h"
+#include "interpreter.h"
 
-#define GHOST_VERSION "0.2.0-dev (Etapa 2 - Fase 4: Semantica)"
+#define GHOST_VERSION "0.2.0-dev (Etapa 2 - Fase 5: Interpretador)"
 
 extern FILE *yyin;
 extern int yylex(void);
@@ -152,9 +153,12 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "\n[GHOST] Analise semantica interrompida com %d erro(s) ICE.\n",
                         ice_get_error_count());
                 ret = 1;
-            } else {
+            } else if (mode_check) {
                 printf("[GHOST] Analise semantica concluida com sucesso. 0 erros encontrados.\n");
                 ret = 0;
+            } else {
+                /* Executa o interpretador sobre a AST */
+                ret = interpret(g_ast_root);
             }
         }
 

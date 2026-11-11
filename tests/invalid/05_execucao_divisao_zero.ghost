@@ -1,0 +1,7 @@
+#!/usr/bin/env ghost
+// Teste de erro em tempo de execucao: divisao por zero
+implant x: core <~ 10!
+implant divisor: core <~ 0!
+whisper "Tentando divisao por zero..."!
+implant res: core <~ x / divisor!
+whisper "Resultado: ", res!
