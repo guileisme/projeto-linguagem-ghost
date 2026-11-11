@@ -1,0 +1,4 @@
+#!/usr/bin/env ghost
+// Teste de erro sintatico: falta de trigger '!' ao final da instrucao
+implant porta: core <~ 8080
+whisper "Nunca chegara aqui"!

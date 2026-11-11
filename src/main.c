@@ -3,14 +3,19 @@
 #include <string.h>
 #include "types.h"
 #include "error.h"
-#include "tokens.h"
 #include "ast.h"
+#include "parser.tab.h"
 
-#define GHOST_VERSION "0.2.0-dev (Etapa 2 - Fase 2: AST)"
+#define GHOST_VERSION "0.2.0-dev (Etapa 2 - Fase 3: Parser & AST)"
 
 extern FILE *yyin;
 extern int yylex(void);
+extern int yyparse(void);
 extern char *yytext;
+extern int token_line;
+extern int token_col;
+extern ASTNode *g_ast_root;
+extern const char *token_to_name(int token);
 
 static void print_banner(void) {
     printf("Ghost (in the shell) - Interpretador Cyberpunk\n");
@@ -24,7 +29,7 @@ static void print_help(const char *prog_name) {
     printf("Opcoes:\n");
     printf("  --tokens        Executa a analise lexica e exibe a lista de tokens\n");
     printf("  --ast           Gera a arvore sintatica abstrata (AST) e a exibe\n");
-    printf("  --check         Executa analise lexica, sintatica e semantica\n");
+    printf("  --check         Executa analise lexica e sintatica sem executar\n");
     printf("  -v, --version   Exibe a versao do interpretador Ghost\n");
     printf("  -h, --help      Exibe esta mensagem de ajuda\n\n");
     printf("Se nenhum arquivo for especificado ou '-' for informado, le da entrada padrao (stdin).\n");
@@ -36,30 +41,30 @@ static int run_lexer(void) {
     printf("%-6s %-6s %-18s %s\n", "LINHA", "COLUNA", "TOKEN", "VALOR / LEXEMA");
     printf("----------------------------------------------------------------------\n");
 
-    while ((tok = yylex()) != TOK_EOF) {
-        printf("%-6d %-6d %-18s ", token_line, token_col, token_name(tok));
+    while ((tok = yylex()) != 0) {
+        printf("%-6d %-6d %-18s ", token_line, token_col, token_to_name(tok));
         switch (tok) {
-            case TOK_NUM_CORE:
-                printf("%ld\n", (long)ghost_lval.val_core);
+            case NUM_CORE:
+                printf("%ld\n", (long)yylval.val_core);
                 break;
-            case TOK_NUM_FLUX:
-                printf("%f\n", ghost_lval.val_flux);
+            case NUM_FLUX:
+                printf("%f\n", yylval.val_flux);
                 break;
-            case TOK_SYNC:
+            case SYNC:
                 printf("sync (true)\n");
                 break;
-            case TOK_VOID:
+            case VOID:
                 printf("void (false)\n");
                 break;
-            case TOK_STRING:
-                printf("\"%s\"\n", ghost_lval.val_stream ? ghost_lval.val_stream : "");
-                free(ghost_lval.val_stream);
-                ghost_lval.val_stream = NULL;
+            case STRING:
+                printf("\"%s\"\n", yylval.val_stream ? yylval.val_stream : "");
+                free(yylval.val_stream);
+                yylval.val_stream = NULL;
                 break;
-            case TOK_ID:
-                printf("%s\n", ghost_lval.val_id ? ghost_lval.val_id : "");
-                free(ghost_lval.val_id);
-                ghost_lval.val_id = NULL;
+            case ID:
+                printf("%s\n", yylval.val_id ? yylval.val_id : "");
+                free(yylval.val_id);
+                yylval.val_id = NULL;
                 break;
             default:
                 printf("'%s'\n", yytext);
@@ -106,35 +111,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    (void)mode_tokens;
     (void)mode_check;
-
-    if (mode_ast) {
-        printf("[GHOST] Demonstracao da Estrutura e Impressao da AST (Fase 2):\n");
-        printf("Representando: 'implant porta: core <~ 8080! when porta > 8000 dive whisper \"Porta aberta!\"! surface'\n\n");
-
-        ASTNode *lit_8080 = ast_new_literal_core(8080, 1, 24);
-        ASTNode *implant = ast_new_implant(strdup("porta"), TYPE_CORE, lit_8080, 1, 1);
-
-        ASTNode *id_porta = ast_new_id(strdup("porta"), 2, 6);
-        ASTNode *lit_8000 = ast_new_literal_core(8000, 2, 14);
-        ASTNode *cond = ast_new_binop(BINOP_GT, id_porta, lit_8000, 2, 12);
-
-        ASTNode *msg = ast_new_literal_stream(strdup("Porta aberta!"), 3, 13);
-        ASTNode *whisper = ast_new_whisper(ast_list_new(msg), 3, 5);
-        ASTNode *block = ast_new_block(ast_list_new(whisper), 2, 20);
-
-        ASTNode *when = ast_new_when(cond, block, NULL, 2, 1);
-
-        ASTNodeList *prog_stmts = ast_list_new(implant);
-        prog_stmts = ast_list_append(prog_stmts, when);
-        ASTNode *prog = ast_new_program(prog_stmts, 1, 1);
-
-        ast_print(prog, 0);
-        ast_free(prog);
-        printf("\n[GHOST] AST construida, exibida e liberada com sucesso (0 memory leaks).\n");
-        return 0;
-    }
 
     /* Abre arquivo de entrada ou le de stdin */
     if (filename && strcmp(filename, "-") != 0) {
@@ -147,8 +124,34 @@ int main(int argc, char *argv[]) {
         yyin = stdin;
     }
 
-    /* Na Fase 1, o modo default ou com --tokens roda a analise lexica */
-    int ret = run_lexer();
+    int ret = 0;
+
+    if (mode_tokens) {
+        ret = run_lexer();
+    } else {
+        /* Executa a analise sintatica e construcao da AST */
+        int parse_res = yyparse();
+
+        if (parse_res != 0 || ice_get_error_count() > 0) {
+            fprintf(stderr, "\n[GHOST] Analise sintatica interrompida com %d erro(s) ICE.\n",
+                    ice_get_error_count());
+            ret = 1;
+        } else {
+            if (mode_ast) {
+                printf("[GHOST] Arvore Sintatica Abstrata (AST):\n");
+                printf("======================================================================\n");
+                ast_print(g_ast_root, 0);
+                printf("======================================================================\n");
+            }
+            printf("[GHOST] Analise sintatica concluida com sucesso. AST construida com exito.\n");
+            ret = 0;
+        }
+
+        if (g_ast_root) {
+            ast_free(g_ast_root);
+            g_ast_root = NULL;
+        }
+    }
 
     if (yyin != stdin) {
         fclose(yyin);
