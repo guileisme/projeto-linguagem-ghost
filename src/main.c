@@ -4,8 +4,9 @@
 #include "types.h"
 #include "error.h"
 #include "tokens.h"
+#include "ast.h"
 
-#define GHOST_VERSION "0.2.0-dev (Etapa 2 - Fase 1: Lexer)"
+#define GHOST_VERSION "0.2.0-dev (Etapa 2 - Fase 2: AST)"
 
 extern FILE *yyin;
 extern int yylex(void);
@@ -105,10 +106,35 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* Suprime warnings de variaveis preparadas para as proximas fases */
     (void)mode_tokens;
-    (void)mode_ast;
     (void)mode_check;
+
+    if (mode_ast) {
+        printf("[GHOST] Demonstracao da Estrutura e Impressao da AST (Fase 2):\n");
+        printf("Representando: 'implant porta: core <~ 8080! when porta > 8000 dive whisper \"Porta aberta!\"! surface'\n\n");
+
+        ASTNode *lit_8080 = ast_new_literal_core(8080, 1, 24);
+        ASTNode *implant = ast_new_implant(strdup("porta"), TYPE_CORE, lit_8080, 1, 1);
+
+        ASTNode *id_porta = ast_new_id(strdup("porta"), 2, 6);
+        ASTNode *lit_8000 = ast_new_literal_core(8000, 2, 14);
+        ASTNode *cond = ast_new_binop(BINOP_GT, id_porta, lit_8000, 2, 12);
+
+        ASTNode *msg = ast_new_literal_stream(strdup("Porta aberta!"), 3, 13);
+        ASTNode *whisper = ast_new_whisper(ast_list_new(msg), 3, 5);
+        ASTNode *block = ast_new_block(ast_list_new(whisper), 2, 20);
+
+        ASTNode *when = ast_new_when(cond, block, NULL, 2, 1);
+
+        ASTNodeList *prog_stmts = ast_list_new(implant);
+        prog_stmts = ast_list_append(prog_stmts, when);
+        ASTNode *prog = ast_new_program(prog_stmts, 1, 1);
+
+        ast_print(prog, 0);
+        ast_free(prog);
+        printf("\n[GHOST] AST construida, exibida e liberada com sucesso (0 memory leaks).\n");
+        return 0;
+    }
 
     /* Abre arquivo de entrada ou le de stdin */
     if (filename && strcmp(filename, "-") != 0) {

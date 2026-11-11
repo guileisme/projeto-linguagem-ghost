@@ -3,8 +3,8 @@ CFLAGS = -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L -Isrc
 LDFLAGS = 
 
 TARGET = ghost
-SRCS = src/main.c src/error.c src/lex.yy.c
-OBJS = src/main.o src/error.o src/lex.yy.o
+SRCS = src/main.c src/error.c src/ast.c src/lex.yy.c
+OBJS = src/main.o src/error.o src/ast.o src/lex.yy.o
 
 .PHONY: all clean test help
 
@@ -32,8 +32,13 @@ test: $(TARGET)
 	@echo "2. Testando barreira ICE com erros lexicos..."
 	@echo "=================================================="
 	-./$(TARGET) tests/invalid/01_lexico_invalido.ghost
+	@echo ""
 	@echo "=================================================="
-	@echo "Verificacao lexica concluida!"
+	@echo "3. Testando construcao e visualizacao da AST..."
+	@echo "=================================================="
+	./$(TARGET) --ast
+	@echo "=================================================="
+	@echo "Verificacoes concluidas com sucesso!"
 
 clean:
 	rm -f src/*.o $(TARGET)
