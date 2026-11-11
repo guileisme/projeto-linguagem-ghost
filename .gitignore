@@ -1,0 +1,18 @@
+# Build artifacts
+*.o
+lex.yy.c
+parser.tab.c
+parser.tab.h
+parser.output
+
+# Binary
+ghost
+ghost.exe
+
+# Temporary and Editor files
+*.swp
+*.swo
+*~
+.DS_Store
+.vscode/
+.idea/
