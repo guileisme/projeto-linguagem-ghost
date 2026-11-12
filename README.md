@@ -90,5 +90,7 @@ docs/              proposta da linguagem e gramática
 
 ## Uso de inteligência artificial
 
-> **Preencher antes da entrega** (a disciplina exige declarar as ferramentas e as atividades em que foram
-> usadas): ferramenta(s) utilizada(s), por quem e para quê. Todos os integrantes devem saber explicar o código.
+Para o desenvolvimento, nós utilizamos I.A. generativa em fluxo agêntico, mas sob um harness de contexto e governança criado pelo Prof. Lucas Figueiredo. Esse harness estrutura o workspace com regras rigorosas (AGENTS.md e contextos locais):
+  1. Leitura antes da escrita: A I.A. era forçada a entender a arquitetura do Flex e Bison antes de propor qualquer código.
+  2. Contratos técnicos estritos: Garantia que as uniões da AST, as regras do Bison e a tabela de símbolos conversassem sem quebrar a tipagem.
+  3. Validação contínua (TDD): Toda adição de código era imediatamente submetida à suíte de testes de regressão. Ou seja: a I.A. não gerou código solto; ela atuou como par de programação dentro de um ambiente controlado e auditável pelo harness.
