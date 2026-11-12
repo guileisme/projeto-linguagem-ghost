@@ -1,0 +1,3 @@
+// ESPERADO: linha 3, coluna 1: diretiva shebang
+implant x: core!
+#!/usr/bin/env ghost

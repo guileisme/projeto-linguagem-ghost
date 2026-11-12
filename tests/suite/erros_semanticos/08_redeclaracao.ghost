@@ -1,0 +1,3 @@
+// ESPERADO: implante 'x' já foi alocado neste escopo
+implant x: core!
+implant x: stream!

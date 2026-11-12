@@ -1,0 +1,3 @@
+// ESPERADO: linha 3, coluna 1: esperava '!' para encerrar a instrução após '1'
+implant x: core <~ 1
+whisper x!

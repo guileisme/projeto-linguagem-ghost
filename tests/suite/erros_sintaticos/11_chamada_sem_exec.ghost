@@ -1,0 +1,5 @@
+// ESPERADO: linha 5, coluna 8: chamada de protocolo usada como instrução exige 'exec'
+protocol ola() dive
+    whisper "ola"!
+surface
+mostrar("x")!

@@ -1,0 +1,2 @@
+// ESPERADO: implante 'porta' é do tipo 'core', mas recebeu valor do tipo 'stream'
+implant porta: core <~ "8080"!

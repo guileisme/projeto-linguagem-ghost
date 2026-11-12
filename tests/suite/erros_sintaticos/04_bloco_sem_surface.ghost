@@ -1,0 +1,4 @@
+// ESPERADO: bloco aberto com 'dive' não foi fechado com 'surface'
+implant x: core <~ 1!
+when x > 0 dive
+    whisper "positivo"!

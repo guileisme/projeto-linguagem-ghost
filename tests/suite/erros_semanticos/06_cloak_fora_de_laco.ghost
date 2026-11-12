@@ -1,0 +1,3 @@
+// ESPERADO: 'cloak' só pode ser usado dentro de cycle, sweep ou route
+whisper "inicio"!
+cloak!

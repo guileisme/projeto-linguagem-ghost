@@ -1,0 +1,4 @@
+// ESPERADO: linha 2, coluna 16: esperava 'to' para fechar a faixa do 'sweep'
+sweep i from 1 dive
+    whisper i!
+surface

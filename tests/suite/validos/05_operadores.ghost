@@ -1,0 +1,15 @@
+/* Cobre todos os operadores, os tipos flux/core,
+   sweep, bypass, scan e comentario em bloco de varias linhas */
+implant taxa: flux <~ 3.14 * 2 - 0.05!
+implant n: core!
+scan n!
+sweep i from 1 to 10 dive
+    when i % 2 =/= 0 either i >= 8 dive
+        bypass!
+    surface
+    when i <= 4 with never (i > 2) dive
+        whisper "par pequeno: ", i!
+    surface
+    exec mostrar(-i, taxa / 2)!
+surface
+implant msg: stream <~ "aspas \"escapadas\" e\ttab"!

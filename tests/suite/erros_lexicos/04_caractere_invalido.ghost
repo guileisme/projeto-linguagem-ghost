@@ -1,0 +1,3 @@
+// ESPERADO: linha 2, coluna 27: caractere '@' não pertence
+implant total: core <~ 10 @ 2!
+implant custo: flux <~ $5.0!

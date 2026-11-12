@@ -1,0 +1,2 @@
+// ESPERADO: operador '&' exige operandos 'stream', mas recebeu 'core'
+implant arquivo: stream <~ "log_" & 3!

@@ -1,0 +1,4 @@
+// ESPERADO: linha 3, coluna 1: comentário em bloco '/*' aberto e nunca fechado
+implant x: core <~ 1!
+/* este comentario nunca termina
+whisper x!

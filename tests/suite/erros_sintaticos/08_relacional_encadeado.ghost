@@ -1,0 +1,2 @@
+// ESPERADO: linha 2, coluna 28: operadores relacionais não podem ser encadeados
+implant ok: state <~ 1 < 2 < 3!

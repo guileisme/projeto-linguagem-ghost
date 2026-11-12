@@ -1,0 +1,2 @@
+// ESPERADO: linha 2, coluna 18: esperava um valor operando após ','
+whisper "a", "b",!

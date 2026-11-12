@@ -1,0 +1,5 @@
+// ESPERADO: condição de 'when' deve ser do tipo 'state', mas é 'core'
+implant x: core <~ 5!
+when x dive
+    whisper x!
+surface

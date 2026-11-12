@@ -1,0 +1,3 @@
+// ESPERADO: identificador 'variavel_fantasma' não alocado neste escopo
+implant y: core!
+y <~ variavel_fantasma + 1!

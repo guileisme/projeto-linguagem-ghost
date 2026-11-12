@@ -1,0 +1,23 @@
+#!/usr/bin/env ghost
+// Espera a criacao de um arquivo de trava (ate 3 tentativas)
+protocol pronto(arquivo: stream) returns state dive
+    yield exists(arquivo)!
+surface
+implant alvo: stream <~ "app.lock"!
+implant tentativas: core <~ 0!
+implant achou: state <~ void!
+cycle tentativas < 3 dive
+    tentativas <~ tentativas + 1!
+    when pronto(alvo) dive
+        achou <~ sync!
+        cloak! // Rompe o laco imediatamente
+    surface
+    whisper "Ciclo ", tentativas, ": aguardando arquivo '", alvo, "'..."!
+    shell "sleep 1"!
+surface
+when achou = sync dive
+    whisper "Sucesso: arquivo '", alvo, "' detectado no ciclo ", tentativas, "!"!
+surface
+otherwise dive
+    whisper "Tempo esgotado: arquivo nao localizado apos 3 tentativas."!
+surface

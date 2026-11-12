@@ -1,0 +1,4 @@
+// ESPERADO: divisão aritmética por zero (falha de barramento numérico)
+// FASE: execucao — só é detectado quando o interpretador roda o programa
+implant divisao: core!
+divisao <~ 10 / 0!

@@ -1,0 +1,39 @@
+// Cobre as construções da gramática que os exemplos da proposta não usam:
+// cadeia otherwise when, laços aninhados, protocolo sem retorno + exec,
+// yield/eject sem valor, blocos vazios e shell(...) dentro de expressão.
+protocol relatorio(nome: stream, total: core) dive
+    whisper "[", nome, "] total = ", total!
+    yield!
+surface
+
+protocol media(a: flux, b: flux) returns flux dive
+    yield (a + b) / 2.0!
+surface
+
+implant nivel: core <~ 7!
+when nivel > 8 dive
+    whisper "critico"!
+surface
+otherwise when nivel > 5 dive
+    whisper "alerta"!
+surface
+otherwise when nivel > 2 dive
+surface
+otherwise dive
+    whisper "normal"!
+surface
+
+sweep i from 1 to 3 dive
+    sweep j from i to 3 dive
+        when i = j dive bypass! surface
+        whisper i, "x", j, " = ", i * j!
+    surface
+surface
+
+exec relatorio("varredura", 9)!
+implant m: flux <~ media(1.5, 2.5)!
+implant usuario: stream <~ "user: " & shell("whoami")!
+shell ("echo " & usuario)!
+when never (m >= 2.0 with m <= 3.0) either signal =/= 0 dive
+    eject!
+surface

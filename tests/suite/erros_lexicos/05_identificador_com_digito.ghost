@@ -1,0 +1,2 @@
+// ESPERADO: linha 2, coluna 9: identificador '9vidas' não pode começar com dígito
+implant 9vidas: core <~ 9!

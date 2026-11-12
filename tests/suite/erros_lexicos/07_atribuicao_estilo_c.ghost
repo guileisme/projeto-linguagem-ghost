@@ -1,0 +1,3 @@
+// ESPERADO: linha 3, coluna 7: caractere ';' não pertence
+implant x: core <~ 1!
+x += 1;

@@ -1,0 +1,2 @@
+// ESPERADO: linha 2, coluna 11: esperava ':', mas encontrou '<~'
+implant x <~ 5!

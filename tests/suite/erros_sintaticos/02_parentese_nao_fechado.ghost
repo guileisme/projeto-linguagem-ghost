@@ -1,0 +1,5 @@
+// ESPERADO: linha 3, coluna 14: parêntese '(' aberto e não fechado antes de 'dive'
+implant x: core <~ 20!
+when (x > 10 dive
+    whisper "maior"!
+surface

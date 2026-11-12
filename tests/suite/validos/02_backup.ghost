@@ -1,0 +1,16 @@
+#!/usr/bin/env ghost
+// Execucao: ghost backup.ghost <diretorio>
+implant origem: stream <~ arg(1)!
+implant destino: stream <~ "backup_" & shell("date +%Y%m%d")!
+when never exists(origem) dive
+    whisper "[ICE Alerta] O no de origem '", origem, "' nao existe no sistema."!
+    eject 1!
+surface
+shell "cp -r " & origem & " " & destino!
+when signal = 0 dive
+    whisper "Copia concluida com sucesso. Cluster alocado em: ", destino!
+surface
+otherwise dive
+    whisper "Falha de barramento no comando cp (codigo de erro: ", signal, ")."!
+    eject signal!
+surface

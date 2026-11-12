@@ -1,0 +1,3 @@
+// ESPERADO: linha 3, coluna 3: esperava '<~', mas encontrou '='
+implant x: core!
+x = 5!

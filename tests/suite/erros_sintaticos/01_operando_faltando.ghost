@@ -1,0 +1,2 @@
+// ESPERADO: linha 2, coluna 25: esperava um valor operando após '+', mas encontrou '!'
+implant n: core <~ 10 + !

@@ -1,0 +1,5 @@
+// ESPERADO: linha 3, coluna 1: 'otherwise' sem um 'when ... surface' imediatamente antes
+whisper "inicio"!
+otherwise dive
+    whisper "nunca"!
+surface

@@ -1,0 +1,5 @@
+// ESPERADO: protocolo 'aviso' não tem 'returns' e não pode ser usado em expressão
+protocol aviso() dive
+    whisper "!"!
+surface
+implant r: core <~ aviso()!

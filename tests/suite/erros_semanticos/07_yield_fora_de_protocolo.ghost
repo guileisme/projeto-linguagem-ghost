@@ -1,0 +1,2 @@
+// ESPERADO: 'yield' só pode ser usado dentro de um protocolo
+yield 1!

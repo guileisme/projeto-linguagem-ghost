@@ -1,0 +1,4 @@
+// ESPERADO: protocolo 'dobro' deve retornar 'core', mas 'yield' devolve 'stream'
+protocol dobro(n: core) returns core dive
+    yield "dois"!
+surface

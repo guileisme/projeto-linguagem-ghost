@@ -1,0 +1,3 @@
+// ESPERADO: linha 3, coluna 24: caractere '.' não pertence
+// flux exige dígitos dos dois lados do ponto: 3.0, e não 3.
+implant taxa: flux <~ 3.!

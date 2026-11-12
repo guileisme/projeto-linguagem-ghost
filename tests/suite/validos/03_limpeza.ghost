@@ -1,0 +1,9 @@
+#!/usr/bin/env ghost
+// Purga de arquivos temporarios no cluster corrente
+implant removidos: core <~ 0!
+route arquivo in shell("ls *.tmp 2>/dev/null") dive
+    shell "rm " & arquivo!
+    removidos <~ removidos + 1!
+    whisper "Arquivo expurgado do sistema: ", arquivo!
+surface
+whisper "Total de artefatos eliminados: ", removidos, " arquivo(s)."!

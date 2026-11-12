@@ -1,0 +1,2 @@
+// ESPERADO: linha 2, coluna 1: 'signal' é somente leitura
+signal <~ 0!

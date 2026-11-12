@@ -1,0 +1,5 @@
+// ESPERADO: protocolo 'soma' espera 2 argumento(s), mas recebeu 1
+protocol soma(a: core, b: core) returns core dive
+    yield a + b!
+surface
+implant r: core <~ soma(1)!

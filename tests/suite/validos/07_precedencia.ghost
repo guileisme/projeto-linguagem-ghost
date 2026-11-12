@@ -1,0 +1,11 @@
+// Expressões que testam a tabela de precedência (Tabela 3).
+// a + b * c        -> a + (b * c)
+// -a * b           -> (-a) * b
+// x < y with y < z -> (x < y) with (y < z)
+// p either q with r -> p either (q with r)
+implant a: core <~ 2 + 3 * 4!
+implant b: core <~ -a * 2 % 3!
+implant c: state <~ a < b with b < 100!
+implant d: state <~ sync either void with never sync!
+implant e: state <~ (a + b) * 2 = 40 either a =/= b!
+implant f: stream <~ "a" & "b" & "c"!

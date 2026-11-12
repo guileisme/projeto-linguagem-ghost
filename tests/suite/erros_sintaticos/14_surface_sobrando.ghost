@@ -1,0 +1,5 @@
+// ESPERADO: linha 5, coluna 1: 'surface' inesperado
+when sync dive
+    whisper "ok"!
+surface
+surface

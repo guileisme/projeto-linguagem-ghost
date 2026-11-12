@@ -1,0 +1,3 @@
+// ESPERADO: linha 3, coluna 25: caractere ''' não pertence
+// strings usam apenas aspas duplas
+implant nome: stream <~ 'root'!

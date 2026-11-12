@@ -1,0 +1,5 @@
+// ESPERADO: linha 3, coluna 5: protocolos só podem ser declarados no nível principal
+when sync dive
+    protocol interno() dive
+    surface
+surface

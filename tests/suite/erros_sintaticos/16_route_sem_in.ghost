@@ -1,0 +1,4 @@
+// ESPERADO: linha 2, coluna 15: esperava 'in', mas encontrou 'shell'
+route arquivo shell("ls") dive
+    whisper arquivo!
+surface

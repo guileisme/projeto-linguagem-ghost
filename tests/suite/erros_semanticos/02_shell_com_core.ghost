@@ -1,0 +1,2 @@
+// ESPERADO: 'shell' requer expressão do tipo 'stream', mas recebeu 'core'
+shell 42!
