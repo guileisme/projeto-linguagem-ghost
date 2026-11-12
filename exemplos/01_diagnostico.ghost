@@ -1,0 +1,7 @@
+#!/usr/bin/env ghost
+// Coleta metadados operacionais da maquina e espaco em disco
+implant operador: stream <~ env("USER")!
+implant data_atual: stream <~ shell("date +%d/%m/%Y")!
+whisper "Operador autenticado: ", operador, " | Data estelar: ", data_atual, "."!
+whisper "Estado dos clusters de armazenamento fisico:"!
+shell "df -h . "!

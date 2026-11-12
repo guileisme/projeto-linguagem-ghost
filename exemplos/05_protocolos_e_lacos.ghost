@@ -1,0 +1,54 @@
+#!/usr/bin/env ghost
+// Demonstra protocolos (funcoes), recursao, sweep, cloak e bypass.
+
+// Recursao: n! = n * (n-1)!
+protocol fatorial(n: core) returns core dive
+  when n <= 1 dive
+    yield 1!
+  surface
+  yield n * fatorial(n - 1)!
+surface
+
+// Protocolo sem retorno: usado com 'exec'
+protocol saudar(nome: stream) dive
+  whisper "Ola, ", nome, "!"!
+surface
+
+// yield dentro de um laco encerra o protocolo imediatamente
+protocol primeiro_par(limite: core) returns core dive
+  sweep i from 1 to limite dive
+    when i % 2 = 0 dive
+      yield i!
+    surface
+  surface
+  yield -1!
+surface
+
+// core e promovido a flux nos argumentos
+protocol media(a: flux, b: flux) returns flux dive
+  yield (a + b) / 2.0!
+surface
+
+whisper "fatorial(5)  = ", fatorial(5)!
+whisper "fatorial(10) = ", fatorial(10)!
+exec saudar("Ghost")!
+whisper "primeiro par ate 7: ", primeiro_par(7)!
+whisper "primeiro par ate 1: ", primeiro_par(1)!
+whisper "media(3, 4) = ", media(3, 4)!
+
+// bypass pula o 2; cloak interrompe no 4
+sweep k from 1 to 5 dive
+  when k = 2 dive
+    bypass!
+  surface
+  when k = 4 dive
+    cloak!
+  surface
+  whisper "k = ", k!
+surface
+
+implant total: core <~ 0!
+sweep j from 1 to 100 dive
+  total <~ total + j!
+surface
+whisper "soma de 1 a 100 = ", total!
