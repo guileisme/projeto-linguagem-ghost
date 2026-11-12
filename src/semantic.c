@@ -11,6 +11,116 @@ static bool is_numeric(DataType t) {
     return (t == TYPE_CORE || t == TYPE_FLUX);
 }
 
+/*
+ * Estado da analise de protocolos e de laços
+ */
+typedef struct ProtoSig {
+    ASTNode *node;
+    struct ProtoSig *next;
+} ProtoSig;
+
+static ProtoSig *g_protos = NULL;       /* protocolos declarados */
+static ASTNode *g_current_proto = NULL; /* protocolo em analise (NULL = fora) */
+static int g_loop_depth = 0;            /* quantos cycle/sweep/route envolvem o ponto atual */
+
+static ASTNode *find_proto(const char *name) {
+    for (ProtoSig *p = g_protos; p; p = p->next) {
+        if (strcmp(p->node->protocol.name, name) == 0) return p->node;
+    }
+    return NULL;
+}
+
+static void register_proto(ASTNode *node) {
+    ProtoSig *p = (ProtoSig *)calloc(1, sizeof(ProtoSig));
+    p->node = node;
+    p->next = g_protos;
+    g_protos = p;
+}
+
+static void clear_protos(void) {
+    ProtoSig *p = g_protos;
+    while (p) {
+        ProtoSig *next = p->next;
+        free(p);
+        p = next;
+    }
+    g_protos = NULL;
+}
+
+/* Um valor do tipo 'got' pode ser usado onde se espera 'want'? (core promove a flux) */
+static bool type_accepts(DataType want, DataType got) {
+    return want == got || (want == TYPE_FLUX && got == TYPE_CORE);
+}
+
+/*
+ * Chamada de funcao embutida (exists, env, arg) ou de protocolo do usuario.
+ * as_expr = true quando o valor da chamada e usado (dentro de uma expressao);
+ * false quando e um comando 'exec' (o valor e descartado).
+ */
+static DataType check_call(ASTNode *node, SymbolTable *st, bool as_expr) {
+    const char *name = node->call.name;
+
+    if (strcmp(name, "exists") == 0) {
+        if (node->call.args) check_expr(node->call.args->node, st);
+        node->expr_type = TYPE_STATE;
+        return TYPE_STATE;
+    } else if (strcmp(name, "env") == 0) {
+        if (node->call.args) check_expr(node->call.args->node, st);
+        node->expr_type = TYPE_STREAM;
+        return TYPE_STREAM;
+    } else if (strcmp(name, "arg") == 0) {
+        if (node->call.args) {
+            DataType t = check_expr(node->call.args->node, st);
+            if (t != TYPE_CORE && t != TYPE_UNKNOWN) {
+                ice_error(ICE_SEMANTIC, node->line, node->col,
+                          "'arg' requer indice do tipo 'core', mas recebeu '%s'", type_to_string(t));
+            }
+        }
+        node->expr_type = TYPE_STREAM;
+        return TYPE_STREAM;
+    }
+
+    ASTNode *proto = find_proto(name);
+    if (!proto) {
+        ice_error(ICE_SEMANTIC, node->line, node->col, "protocolo '%s' nao declarado", name);
+        for (ASTNodeList *a = node->call.args; a; a = a->next) check_expr(a->node, st);
+        node->expr_type = TYPE_UNKNOWN;
+        return TYPE_UNKNOWN;
+    }
+
+    /* Aridade e tipos dos argumentos */
+    int expected = 0, given = 0;
+    for (ParamNode *p = proto->protocol.params; p; p = p->next) expected++;
+    for (ASTNodeList *a = node->call.args; a; a = a->next) given++;
+    if (expected != given) {
+        ice_error(ICE_SEMANTIC, node->line, node->col,
+                  "protocolo '%s' espera %d argumento(s), mas recebeu %d", name, expected, given);
+    }
+    ParamNode *p = proto->protocol.params;
+    int pos = 1;
+    for (ASTNodeList *a = node->call.args; a; a = a->next, pos++) {
+        DataType t = check_expr(a->node, st);
+        if (p) {
+            if (t != TYPE_UNKNOWN && !type_accepts(p->type, t)) {
+                ice_error(ICE_SEMANTIC, node->line, node->col,
+                          "argumento %d do protocolo '%s' deve ser do tipo '%s', mas recebeu '%s'",
+                          pos, name, type_to_string(p->type), type_to_string(t));
+            }
+            p = p->next;
+        }
+    }
+
+    DataType rt = proto->protocol.return_type;
+    if (as_expr && rt == TYPE_NONE) {
+        ice_error(ICE_SEMANTIC, node->line, node->col,
+                  "protocolo '%s' nao tem 'returns' e nao pode ser usado em expressao", name);
+        node->expr_type = TYPE_UNKNOWN;
+        return TYPE_UNKNOWN;
+    }
+    node->expr_type = rt;
+    return rt;
+}
+
 static DataType check_expr(ASTNode *node, SymbolTable *st) {
     if (!node) return TYPE_UNKNOWN;
 
@@ -58,21 +168,8 @@ static DataType check_expr(ASTNode *node, SymbolTable *st) {
             return TYPE_STREAM;
         }
 
-        case AST_CALL: {
-            /* Chamadas de protocolo/built-in */
-            /* Funcoes embutidas conhecidas: env, arg, exists */
-            if (strcmp(node->call.name, "exists") == 0) {
-                if (node->call.args) check_expr(node->call.args->node, st);
-                node->expr_type = TYPE_STATE;
-                return TYPE_STATE;
-            } else if (strcmp(node->call.name, "env") == 0 || strcmp(node->call.name, "arg") == 0) {
-                if (node->call.args) check_expr(node->call.args->node, st);
-                node->expr_type = TYPE_STREAM;
-                return TYPE_STREAM;
-            }
-            node->expr_type = TYPE_UNKNOWN;
-            return TYPE_UNKNOWN;
-        }
+        case AST_CALL:
+            return check_call(node, st, true);
 
         case AST_UNOP: {
             DataType t = check_expr(node->unop.operand, st);
@@ -208,6 +305,18 @@ static void check_stmt(ASTNode *node, SymbolTable *st) {
 
     switch (node->type) {
         case AST_PROGRAM:
+            /* Registra todos os protocolos antes de checar o resto, para que
+             * possam ser chamados antes do ponto em que sao declarados. */
+            for (ASTNodeList *l = node->program.stmts; l; l = l->next) {
+                if (l->node->type == AST_PROTOCOL) {
+                    if (find_proto(l->node->protocol.name)) {
+                        ice_error(ICE_SEMANTIC, l->node->line, l->node->col,
+                                  "protocolo '%s' ja declarado", l->node->protocol.name);
+                    } else {
+                        register_proto(l->node);
+                    }
+                }
+            }
             for (ASTNodeList *l = node->program.stmts; l; l = l->next) {
                 check_stmt(l->node, st);
             }
@@ -312,7 +421,9 @@ static void check_stmt(ASTNode *node, SymbolTable *st) {
                           "condicao de 'cycle' requer tipo 'state', recebido '%s'",
                           type_to_string(cond_t));
             }
+            g_loop_depth++;
             check_stmt(node->cycle_stmt.body, st);
+            g_loop_depth--;
             break;
         }
 
@@ -325,7 +436,9 @@ static void check_stmt(ASTNode *node, SymbolTable *st) {
                 ice_error(ICE_SEMANTIC, node->line, node->col,
                           "faixa de contagem do 'sweep' requer limites do tipo 'core'");
             }
+            g_loop_depth++;
             check_stmt(node->sweep_stmt.body, st);
+            g_loop_depth--;
             symtab_exit_scope(st);
             break;
         }
@@ -338,7 +451,9 @@ static void check_stmt(ASTNode *node, SymbolTable *st) {
                 ice_error(ICE_SEMANTIC, node->line, node->col,
                           "'route' requer fluxo do tipo 'stream'");
             }
+            g_loop_depth++;
             check_stmt(node->route_stmt.body, st);
+            g_loop_depth--;
             symtab_exit_scope(st);
             break;
         }
@@ -366,23 +481,66 @@ static void check_stmt(ASTNode *node, SymbolTable *st) {
         }
 
         case AST_PROTOCOL: {
-            if (symtab_lookup_current(st, node->protocol.name)) {
-                ice_error(ICE_SEMANTIC, node->line, node->col,
-                          "protocolo '%s' ja declarado", node->protocol.name);
-            }
+            /* Declaracao ja registrada no inicio do programa; aqui checa o corpo */
+            ASTNode *prev_proto = g_current_proto;
+            int prev_depth = g_loop_depth;
+            g_current_proto = node;
+            g_loop_depth = 0; /* cloak/bypass nao atravessam a fronteira do protocolo */
+
             symtab_enter_scope(st);
             for (ParamNode *p = node->protocol.params; p; p = p->next) {
                 symtab_insert(st, p->name, p->type, node->line, node->col);
             }
             check_stmt(node->protocol.body, st);
             symtab_exit_scope(st);
+
+            g_current_proto = prev_proto;
+            g_loop_depth = prev_depth;
             break;
         }
 
         case AST_EXEC:
-        case AST_YIELD:
+            check_call(node->unop.operand, st, false);
+            break;
+
+        case AST_YIELD: {
+            DataType t = node->yield_stmt.expr ? check_expr(node->yield_stmt.expr, st) : TYPE_NONE;
+            if (!g_current_proto) {
+                ice_error(ICE_SEMANTIC, node->line, node->col,
+                          "'yield' so pode ser usado dentro de um protocolo");
+                break;
+            }
+            const char *pname = g_current_proto->protocol.name;
+            DataType rt = g_current_proto->protocol.return_type;
+            if (node->yield_stmt.expr) {
+                if (rt == TYPE_NONE) {
+                    ice_error(ICE_SEMANTIC, node->line, node->col,
+                              "protocolo '%s' nao declara 'returns', mas 'yield' devolve valor", pname);
+                } else if (t != TYPE_UNKNOWN && !type_accepts(rt, t)) {
+                    ice_error(ICE_SEMANTIC, node->line, node->col,
+                              "protocolo '%s' deve retornar '%s', mas 'yield' devolve '%s'",
+                              pname, type_to_string(rt), type_to_string(t));
+                }
+            } else if (rt != TYPE_NONE) {
+                ice_error(ICE_SEMANTIC, node->line, node->col,
+                          "protocolo '%s' deve retornar '%s', mas 'yield' nao devolve valor",
+                          pname, type_to_string(rt));
+            }
+            break;
+        }
+
         case AST_CLOAK:
+            if (g_loop_depth == 0) {
+                ice_error(ICE_SEMANTIC, node->line, node->col,
+                          "'cloak' so pode ser usado dentro de cycle, sweep ou route");
+            }
+            break;
+
         case AST_BYPASS:
+            if (g_loop_depth == 0) {
+                ice_error(ICE_SEMANTIC, node->line, node->col,
+                          "'bypass' so pode ser usado dentro de cycle, sweep ou route");
+            }
             break;
 
         default:
@@ -393,9 +551,14 @@ static void check_stmt(ASTNode *node, SymbolTable *st) {
 bool semantic_analyze(ASTNode *root) {
     if (!root) return true;
 
+    g_current_proto = NULL;
+    g_loop_depth = 0;
+    clear_protos();
+
     SymbolTable *st = symtab_new();
     check_stmt(root, st);
     symtab_free(st);
+    clear_protos();
 
     return (ice_get_error_count() == 0);
 }

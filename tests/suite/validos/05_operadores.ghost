@@ -1,5 +1,11 @@
 /* Cobre todos os operadores, os tipos flux/core,
    sweep, bypass, scan e comentario em bloco de varias linhas */
+
+// protocolo auxiliar: o 'exec mostrar(...)' abaixo precisa que ele exista
+protocol mostrar(a: core, b: flux) dive
+    whisper a, " ", b!
+surface
+
 implant taxa: flux <~ 3.14 * 2 - 0.05!
 implant n: core!
 scan n!

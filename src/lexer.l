@@ -14,6 +14,10 @@ int current_col = 1;
 int token_line = 1;
 int token_col = 1;
 
+/* Posicao onde o ultimo comentario de bloco foi aberto (para o erro de comentario nao fechado) */
+static int comment_line = 1;
+static int comment_col = 1;
+
 static char *unescape_string(const char *src) {
     size_t len = strlen(src);
     if (len < 2) return strdup("");
@@ -67,18 +71,24 @@ static char *unescape_string(const char *src) {
 %%
 
     /* Shebang (ignorado se presente) */
-^#!.*                       { /* ignora shebang */ }
+^#!.*                       {
+                                /* shebang so e valido na primeira linha */
+                                if (token_line != 1) {
+                                    ice_error(ICE_LEXICAL, token_line, token_col,
+                                              "diretiva shebang '#!' so e permitida na primeira linha");
+                                }
+                            }
 
     /* Comentarios de linha unica */
 "//".*                      { /* ignora comentario inline */ }
 
     /* Comentarios de bloco */
-"/*"                        { BEGIN(COMMENT_BLOCK); }
+"/*"                        { comment_line = token_line; comment_col = token_col; BEGIN(COMMENT_BLOCK); }
 <COMMENT_BLOCK>"*/"         { BEGIN(INITIAL); }
 <COMMENT_BLOCK>\n           { /* quebra de linha dentro do comentario */ }
 <COMMENT_BLOCK>.            { /* conteudo do comentario */ }
 <COMMENT_BLOCK><<EOF>>      {
-                                ice_error(ICE_LEXICAL, token_line, token_col, "bloco de comentario nao finalizado antes do fim do arquivo");
+                                ice_error(ICE_LEXICAL, comment_line, comment_col, "bloco de comentario '/*' aberto e nunca fechado");
                                 return 0;
                             }
 
@@ -163,10 +173,23 @@ static char *unescape_string(const char *src) {
                                 ice_error(ICE_LEXICAL, token_line, token_col, "cadeia de texto (stream) nao terminada");
                             }
 
+    /* Identificador iniciado por digito (ex.: 9vidas): erro lexico */
+[0-9]+[a-zA-Z_][a-zA-Z0-9_]* {
+                                ice_error(ICE_LEXICAL, token_line, token_col,
+                                          "identificador '%s' nao pode comecar com digito", yytext);
+                                yylval.val_id = strdup(yytext);
+                                return ID; /* segue como identificador para nao gerar erros em cascata */
+                            }
+
     /* Identificadores */
 [a-zA-Z_][a-zA-Z0-9_]*      {
                                 yylval.val_id = strdup(yytext);
                                 return ID;
+                            }
+
+    /* Caracteres fora do ASCII (acentos etc.): uma sequencia vira um unico erro */
+[\x80-\xFF]+                {
+                                ice_error(ICE_LEXICAL, token_line, token_col, "caractere invalido '%s'", yytext);
                             }
 
     /* Tratamento de Erros Lexicos: qualquer caractere desconhecido */
