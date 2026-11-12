@@ -26,7 +26,8 @@ typedef enum {
     FLOW_NORMAL = 0,
     FLOW_CLOAK,    /* break */
     FLOW_BYPASS,   /* continue */
-    FLOW_EJECT     /* emergency disconnect */
+    FLOW_EJECT,    /* emergency disconnect */
+    FLOW_YIELD     /* retorno de um protocolo */
 } FlowSignal;
 
 /*
@@ -34,5 +35,11 @@ typedef enum {
  * Retorna o codigo de saida do programa (0 para sucesso, ou valor do eject/erro)
  */
 int interpret(ASTNode *root);
+
+/*
+ * Informa ao interpretador os argumentos do script (usados por arg(n)).
+ * Deve ser chamada antes de interpret().
+ */
+void interpret_set_args(int argc, char **argv);
 
 #endif /* GHOST_INTERPRETER_H */

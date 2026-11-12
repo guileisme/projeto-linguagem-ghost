@@ -27,7 +27,7 @@ static void print_banner(void) {
 static void print_help(const char *prog_name) {
     print_banner();
     printf("\nUso:\n");
-    printf("  %s [opcoes] <arquivo.ghost>\n\n", prog_name);
+    printf("  %s [opcoes] <arquivo.ghost> [argumentos do script]\n\n", prog_name);
     printf("Opcoes:\n");
     printf("  --tokens        Executa a analise lexica e exibe a lista de tokens\n");
     printf("  --ast           Gera a arvore sintatica abstrata (AST) e a exibe\n");
@@ -87,6 +87,8 @@ static int run_lexer(void) {
 
 int main(int argc, char *argv[]) {
     const char *filename = NULL;
+    char *script_args[64];       /* argumentos depois do arquivo: arg(1), arg(2)... */
+    int script_argc = 0;
     int mode_tokens = 0;
     int mode_ast = 0;
     int mode_check = 0;
@@ -108,11 +110,14 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Opcao desconhecida: %s\n", argv[i]);
             print_help(argv[0]);
             return 1;
-        } else {
+        } else if (!filename) {
             filename = argv[i];
+        } else if (script_argc < 64) {
+            script_args[script_argc++] = argv[i];   /* repassado ao script */
         }
     }
 
+    interpret_set_args(script_argc, script_args);
     (void)mode_check;
 
     /* Abre arquivo de entrada ou le de stdin */

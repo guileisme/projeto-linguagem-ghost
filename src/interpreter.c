@@ -32,13 +32,61 @@ typedef struct RuntimeScope {
  */
 typedef struct {
     RuntimeScope *current_scope;
+    RuntimeScope *global_scope; /* escopo raiz: protocolos enxergam so ele */
     int64_t signal_reg; /* registrador signal */
     FlowSignal flow;
     int eject_code;
     bool has_runtime_error;
+    Value ret_value;    /* valor devolvido por 'yield' */
+    int call_depth;     /* profundidade de chamadas de protocolos */
 } RuntimeContext;
 
 static RuntimeContext g_ctx;
+
+/* Argumentos do script, acessados por arg(n) */
+static int g_script_argc = 0;
+static char **g_script_argv = NULL;
+
+void interpret_set_args(int argc, char **argv) {
+    g_script_argc = argc;
+    g_script_argv = argv;
+}
+
+#define MAX_CALL_DEPTH 500
+
+/* Tabela de protocolos declarados (preenchida antes da execucao) */
+typedef struct ProtoEntry {
+    ASTNode *node;
+    struct ProtoEntry *next;
+} ProtoEntry;
+
+static ProtoEntry *g_protocols = NULL;
+
+static void proto_register(ASTNode *node) {
+    ProtoEntry *e = (ProtoEntry *)calloc(1, sizeof(ProtoEntry));
+    e->node = node;
+    e->next = g_protocols;
+    g_protocols = e;
+}
+
+static ASTNode *proto_find(const char *name) {
+    for (ProtoEntry *e = g_protocols; e; e = e->next) {
+        if (strcmp(e->node->protocol.name, name) == 0) {
+            return e->node;
+        }
+    }
+    return NULL;
+}
+
+static void proto_clear(void) {
+    ProtoEntry *e = g_protocols;
+    while (e) {
+        ProtoEntry *next = e->next;
+        free(e);
+        e = next;
+    }
+    g_protocols = NULL;
+}
 
 static RuntimeScope *rscope_new(RuntimeScope *parent) {
     RuntimeScope *s = (RuntimeScope *)calloc(1, sizeof(RuntimeScope));
@@ -100,18 +148,31 @@ static void env_set_local(const char *name, Value val) {
     g_ctx.current_scope->vars = new_var;
 }
 
-static bool env_assign(const char *name, Value val) {
-    /* Busca do escopo atual para cima e atualiza */
+static VarEntry *env_find(const char *name) {
     for (RuntimeScope *s = g_ctx.current_scope; s; s = s->parent) {
         for (VarEntry *v = s->vars; v; v = v->next) {
             if (strcmp(v->name, name) == 0) {
-                value_free(&v->value);
-                v->value = val;
-                return true;
+                return v;
             }
         }
     }
-    return false;
+    return NULL;
+}
+
+static bool env_assign(const char *name, Value val) {
+    /* Busca do escopo atual para cima e atualiza */
+    VarEntry *v = env_find(name);
+    if (!v) return false;
+
+    /* Promocao implicita core -> flux, como na declaracao */
+    if (v->value.type == TYPE_FLUX && val.type == TYPE_CORE) {
+        double f = (double)val.val_core;
+        val.type = TYPE_FLUX;
+        val.val_flux = f;
+    }
+    value_free(&v->value);
+    v->value = val;
+    return true;
 }
 
 static Value env_get(const char *name, int line, int col) {
@@ -154,6 +215,78 @@ static Value default_value_for_type(DataType t) {
         default:          v.val_core = 0; break;
     }
     return v;
+}
+
+static Value eval_expr(ASTNode *node);
+static void exec_stmt(ASTNode *node);
+
+/*
+ * Chamada de protocolo definido pelo usuario.
+ * 1) avalia os argumentos no escopo de quem chamou;
+ * 2) cria um escopo novo cujo pai e o escopo global (o protocolo nao enxerga
+ *    as variaveis locais de quem chamou);
+ * 3) liga cada parametro ao valor do argumento e executa o corpo;
+ * 4) se o corpo executou 'yield', devolve o valor guardado em ret_value.
+ */
+static Value call_protocol(ASTNode *proto, ASTNodeList *args, int line, int col) {
+    Value result;
+    result.type = TYPE_CORE;
+    result.val_core = 0;
+
+    if (g_ctx.call_depth >= MAX_CALL_DEPTH) {
+        ice_error(ICE_RUNTIME, line, col,
+                  "limite de chamadas aninhadas excedido no protocolo '%s' (recursao infinita?)",
+                  proto->protocol.name);
+        g_ctx.has_runtime_error = true;
+        return result;
+    }
+
+    /* 1) argumentos, avaliados no escopo de quem chamou */
+    Value vals[16];
+    int n = 0;
+    for (ASTNodeList *a = args; a && n < 16; a = a->next) {
+        vals[n++] = eval_expr(a->node);
+    }
+    if (g_ctx.has_runtime_error) {
+        for (int i = 0; i < n; i++) value_free(&vals[i]);
+        return result;
+    }
+
+    /* 2) escopo do protocolo, filho do escopo global */
+    RuntimeScope *caller_scope = g_ctx.current_scope;
+    RuntimeScope *call_scope = rscope_new(g_ctx.global_scope);
+    g_ctx.current_scope = call_scope;
+
+    /* 3) parametros */
+    int i = 0;
+    for (ParamNode *p = proto->protocol.params; p && i < n; p = p->next, i++) {
+        Value v = vals[i];
+        if (p->type == TYPE_FLUX && v.type == TYPE_CORE) {
+            double f = (double)v.val_core;
+            v.type = TYPE_FLUX;
+            v.val_flux = f;
+        }
+        env_set_local(p->name, v);
+    }
+
+    g_ctx.call_depth++;
+    exec_stmt(proto->protocol.body);
+    g_ctx.call_depth--;
+
+    /* 4) retorno */
+    if (g_ctx.flow == FLOW_YIELD) {
+        g_ctx.flow = FLOW_NORMAL;
+        result = g_ctx.ret_value;
+        g_ctx.ret_value.type = TYPE_CORE;
+        g_ctx.ret_value.val_core = 0;
+    } else if (g_ctx.flow == FLOW_CLOAK || g_ctx.flow == FLOW_BYPASS) {
+        g_ctx.flow = FLOW_NORMAL; /* cloak/bypass nao atravessam protocolos */
+    }
+    /* FLOW_EJECT continua propagando ate o fim do programa */
+
+    rscope_free(call_scope);
+    g_ctx.current_scope = caller_scope;
+    return result;
 }
 
 /*
@@ -285,8 +418,30 @@ static Value eval_expr(ASTNode *node) {
                     res.val_stream = strdup("");
                 }
                 return res;
+            } else if (strcmp(node->call.name, "arg") == 0) {
+                /* arg(n): n-esimo argumento da linha de comando do script (1 = primeiro) */
+                res.type = TYPE_STREAM;
+                res.val_stream = strdup("");
+                if (node->call.args) {
+                    Value idx = eval_expr(node->call.args->node);
+                    if (idx.type == TYPE_CORE && idx.val_core >= 1 &&
+                        idx.val_core <= g_script_argc && g_script_argv) {
+                        free(res.val_stream);
+                        res.val_stream = strdup(g_script_argv[idx.val_core - 1]);
+                    }
+                }
+                return res;
             }
-            break;
+
+            /* Protocolo definido pelo usuario */
+            ASTNode *proto = proto_find(node->call.name);
+            if (proto) {
+                return call_protocol(proto, node->call.args, node->line, node->col);
+            }
+            ice_error(ICE_RUNTIME, node->line, node->col,
+                      "protocolo '%s' nao definido", node->call.name);
+            g_ctx.has_runtime_error = true;
+            return res;
         }
 
         case AST_UNOP: {
@@ -500,6 +655,13 @@ static void exec_stmt(ASTNode *node) {
 
     switch (node->type) {
         case AST_PROGRAM:
+            /* Primeiro registra os protocolos: assim podem ser chamados
+             * mesmo antes do ponto em que foram declarados no arquivo. */
+            for (ASTNodeList *l = node->program.stmts; l; l = l->next) {
+                if (l->node->type == AST_PROTOCOL) {
+                    proto_register(l->node);
+                }
+            }
             for (ASTNodeList *l = node->program.stmts; l; l = l->next) {
                 exec_stmt(l->node);
                 if (g_ctx.flow != FLOW_NORMAL || g_ctx.has_runtime_error) {
@@ -545,8 +707,19 @@ static void exec_stmt(ASTNode *node) {
         }
 
         case AST_WHISPER: {
-            for (ASTNodeList *l = node->whisper.args; l; l = l->next) {
-                Value v = eval_expr(l->node);
+            /* Avalia todos os argumentos antes de imprimir: se algum falhar em
+             * tempo de execucao, nada e impresso (evita saida parcial/falsa). */
+            Value vals[32];
+            int nvals = 0;
+            for (ASTNodeList *l = node->whisper.args; l && nvals < 32; l = l->next) {
+                vals[nvals++] = eval_expr(l->node);
+            }
+            if (g_ctx.has_runtime_error || g_ctx.flow != FLOW_NORMAL) {
+                for (int i = 0; i < nvals; i++) value_free(&vals[i]);
+                break;
+            }
+            for (int i = 0; i < nvals; i++) {
+                Value v = vals[i];
                 switch (v.type) {
                     case TYPE_CORE:
                         printf("%ld", (long)v.val_core);
@@ -621,6 +794,171 @@ static void exec_stmt(ASTNode *node) {
             break;
         }
 
+        case AST_PROTOCOL:
+            /* Declaracao: ja registrada no inicio do programa; nada a executar aqui */
+            break;
+
+        case AST_EXEC: {
+            /* exec chamada! : executa o protocolo e descarta o valor devolvido */
+            Value v = eval_expr(node->unop.operand);
+            value_free(&v);
+            break;
+        }
+
+        case AST_YIELD: {
+            if (node->yield_stmt.expr) {
+                Value v = eval_expr(node->yield_stmt.expr);
+                if (g_ctx.has_runtime_error) {
+                    value_free(&v);
+                    break;
+                }
+                value_free(&g_ctx.ret_value);
+                g_ctx.ret_value = v;
+            }
+            g_ctx.flow = FLOW_YIELD;
+            break;
+        }
+
+        case AST_SWEEP: {
+            /* sweep i from A to B : conta de A ate B, inclusive, de 1 em 1 */
+            Value vf = eval_expr(node->sweep_stmt.from_expr);
+            Value vt = eval_expr(node->sweep_stmt.to_expr);
+            if (g_ctx.has_runtime_error) break;
+
+            env_push_scope();
+            for (int64_t i = vf.val_core; i <= vt.val_core; i++) {
+                Value iv;
+                iv.type = TYPE_CORE;
+                iv.val_core = i;
+                env_set_local(node->sweep_stmt.var_name, iv);
+
+                exec_stmt(node->sweep_stmt.body);
+
+                if (g_ctx.flow == FLOW_CLOAK) {
+                    g_ctx.flow = FLOW_NORMAL;
+                    break;
+                } else if (g_ctx.flow == FLOW_BYPASS) {
+                    g_ctx.flow = FLOW_NORMAL;
+                } else if (g_ctx.flow != FLOW_NORMAL || g_ctx.has_runtime_error) {
+                    break; /* eject, yield ou erro: sai do laco */
+                }
+            }
+            env_pop_scope();
+            break;
+        }
+
+        case AST_ROUTE: {
+            /* route item in fluxo : uma iteracao por linha do stream */
+            Value src = eval_expr(node->route_stmt.expr);
+            if (g_ctx.has_runtime_error) {
+                value_free(&src);
+                break;
+            }
+
+            char *text = strdup(src.val_stream ? src.val_stream : "");
+            value_free(&src);
+
+            env_push_scope();
+            if (text[0] != '\0') {
+                char *cursor = text;
+                while (cursor) {
+                    char *nl = strchr(cursor, '\n');
+                    if (nl) *nl = '\0';
+
+                    size_t len = strlen(cursor);
+                    if (len > 0 && cursor[len - 1] == '\r') cursor[len - 1] = '\0';
+
+                    Value lv;
+                    lv.type = TYPE_STREAM;
+                    lv.val_stream = strdup(cursor);
+                    env_set_local(node->route_stmt.var_name, lv);
+
+                    exec_stmt(node->route_stmt.body);
+
+                    bool stop = false;
+                    if (g_ctx.flow == FLOW_CLOAK) {
+                        g_ctx.flow = FLOW_NORMAL;
+                        stop = true;
+                    } else if (g_ctx.flow == FLOW_BYPASS) {
+                        g_ctx.flow = FLOW_NORMAL;
+                    } else if (g_ctx.flow != FLOW_NORMAL || g_ctx.has_runtime_error) {
+                        stop = true;
+                    }
+                    if (stop) break;
+
+                    cursor = nl ? nl + 1 : NULL;
+                }
+            }
+            env_pop_scope();
+            free(text);
+            break;
+        }
+
+        case AST_SCAN: {
+            /* scan x! : le uma linha da entrada padrao e converte para o tipo de x */
+            VarEntry *var = env_find(node->scan.name);
+            if (!var) {
+                ice_error(ICE_RUNTIME, node->line, node->col,
+                          "identificador '%s' nao encontrado na memoria", node->scan.name);
+                g_ctx.has_runtime_error = true;
+                break;
+            }
+
+            char line[1024];
+            if (!fgets(line, sizeof(line), stdin)) {
+                ice_error(ICE_RUNTIME, node->line, node->col,
+                          "fim da entrada padrao ao executar 'scan %s'", node->scan.name);
+                g_ctx.has_runtime_error = true;
+                break;
+            }
+            size_t len = strlen(line);
+            while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
+                line[--len] = '\0';
+            }
+
+            Value nv;
+            nv.type = var->value.type;
+            char *end = NULL;
+            switch (var->value.type) {
+                case TYPE_CORE:
+                    nv.val_core = strtoll(line, &end, 10);
+                    if (end == line || *end != '\0') {
+                        ice_error(ICE_RUNTIME, node->line, node->col,
+                                  "entrada '%s' invalida para o tipo 'core'", line);
+                        g_ctx.has_runtime_error = true;
+                    }
+                    break;
+                case TYPE_FLUX:
+                    nv.val_flux = strtod(line, &end);
+                    if (end == line || *end != '\0') {
+                        ice_error(ICE_RUNTIME, node->line, node->col,
+                                  "entrada '%s' invalida para o tipo 'flux'", line);
+                        g_ctx.has_runtime_error = true;
+                    }
+                    break;
+                case TYPE_STATE:
+                    if (strcmp(line, "sync") == 0) {
+                        nv.val_state = true;
+                    } else if (strcmp(line, "void") == 0) {
+                        nv.val_state = false;
+                    } else {
+                        ice_error(ICE_RUNTIME, node->line, node->col,
+                                  "entrada '%s' invalida para o tipo 'state' (use sync ou void)", line);
+                        g_ctx.has_runtime_error = true;
+                    }
+                    break;
+                default:
+                    nv.type = TYPE_STREAM;
+                    nv.val_stream = strdup(line);
+                    break;
+            }
+            if (!g_ctx.has_runtime_error) {
+                value_free(&var->value);
+                var->value = nv;
+            }
+            break;
+        }
+
         case AST_EJECT: {
             int code = 0;
             if (node->eject_stmt.code_expr) {
@@ -642,6 +980,9 @@ int interpret(ASTNode *root) {
 
     memset(&g_ctx, 0, sizeof(RuntimeContext));
     g_ctx.current_scope = rscope_new(NULL);
+    g_ctx.global_scope = g_ctx.current_scope;
+    g_ctx.ret_value.type = TYPE_CORE;
+    g_ctx.ret_value.val_core = 0;
     g_ctx.signal_reg = 0;
     g_ctx.flow = FLOW_NORMAL;
     g_ctx.eject_code = 0;
@@ -654,8 +995,10 @@ int interpret(ASTNode *root) {
         exit_code = 1;
     }
 
-    rscope_free(g_ctx.current_scope);
+    rscope_free(g_ctx.global_scope);
     g_ctx.current_scope = NULL;
+    g_ctx.global_scope = NULL;
+    proto_clear();
 
     return exit_code;
 }
