@@ -4,7 +4,8 @@ Equipe: Deborah Camilly Barbosa Leal Silva · Emanoel Asaph Leite de Oliveira ·
 
 Este documento formaliza a gramática da linguagem Ghost e registra as decisões de projeto
 tomadas para a sintaxe e para a semântica. A versão executável da gramática está em
-`gramatica/gramatica.y` (Bison) e o vocabulário de tokens em `lexico/lexico.l` (Flex).
+`src/parser.y` (Bison), o vocabulário de tokens em `src/lexer.l` (Flex) e a documentação da
+arquitetura completa em `docs/arquitetura.md`.
 
 ---
 
@@ -12,7 +13,7 @@ tomadas para a sintaxe e para a semântica. A versão executável da gramática 
 
 ```
 arquivo.ghost ──► Léxico (Flex) ──► Sintático (Bison) ──► AST ──► Semântico ──► Interpretador
-                  lexico.l          gramatica.y               (próxima etapa)
+                  src/lexer.l       src/parser.y          ast.c   semantic.c    interpreter.c
 ```
 
 As três fases de validação (léxica, sintática e semântica) rodam **antes** de qualquer

@@ -9,7 +9,7 @@ Projeto da disciplina de Compiladores (UFRPE) — modalidade **interpretador**, 
 
 ```
 implant total: core <~ 0!                 // variável (implant) com tipo
-sweep i from 1 to 5 dive                  // laço de contagem; blocos: dive ... surface
+	sweep i from 1 to 5 dive                  // laço de contagem; blocos: dive ... surface
   total <~ total + i!                     // atribuição (<~) e fim de instrução (!)
 surface
 when total > 10 dive                      // condicional
@@ -75,18 +75,19 @@ src/error.c/.h     diagnósticos [GHOST::ICE_FAULT]
 src/main.c         linha de comando
 tests/suite/       suíte de testes      tests/valid, tests/invalid: testes iniciais
 exemplos/          programas de exemplo e script que os executa
-docs/              proposta da linguagem e gramática
+docs/              proposta da linguagem, gramática (gramatica.md) e arquitetura (arquitetura.md)
 ```
 
-## Estado atual (Etapa 2)
+## Estado atual (Etapa 3 — Entrega Final)
 
-- [x] Gramática e decisões de sintaxe e semântica
-- [x] Análise léxica
-- [x] Análise sintática
-- [x] Construção da AST
-- [x] Tabela de símbolos e análise semântica
-- [x] Interpretador (inclusive laços `sweep`/`route`, protocolos recursivos e `arg()`)
-- [x] Exemplos de execução e testes iniciais (válidos e inválidos)
+- [x] Gramática e decisões de sintaxe e semântica (`docs/gramatica.md`)
+- [x] Documentação técnica da arquitetura e decisões de implementação (`docs/arquitetura.md`)
+- [x] Análise léxica (`src/lexer.l`)
+- [x] Análise sintática LALR(1) sem conflitos (`src/parser.y`)
+- [x] Construção explícita da AST (`src/ast.c/.h`)
+- [x] Tabela de símbolos e análise semântica (`src/symtab.c`, `src/semantic.c`)
+- [x] Interpretador AST completo (inclusive `sweep`/`route`, protocolos recursivos e `arg()`)
+- [x] Exemplos de execução e suíte automatizada com 44 testes (`make test`, `make exemplos`)
 
 ## Uso de inteligência artificial
 
